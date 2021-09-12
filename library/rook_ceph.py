@@ -125,19 +125,19 @@ def deploy(params: dict):
     ceph_nodes: list[object] = ceph.get('nodes')
 
     # Download files
-    FILES = [
-        'crds.yaml',
-        'common.yaml',
-        'operator.yaml',
-        'cluster.yaml',
-        'csi/rbd/storageclass.yaml',
-        'toolbox.yaml',
-    ]
+    FILES = {
+        'crds.yaml': 'crds.yaml',
+        'common.yaml': 'common.yaml',
+        'operator.yaml': 'operator.yaml',
+        'cluster.yaml': 'cluster.yaml',
+        'storageclass.yaml': 'csi/rbd/storageclass.yaml',
+        'toolbox.yaml': 'toolbox.yaml',
+    }
     SOURCE = '/tmp/rook-ceph'
     os.makedirs(SOURCE, mode=0o755, exist_ok=True)
     http = urllib3.PoolManager()
-    for file in FILES:
-        url = f'https://raw.githubusercontent.com/rook/rook/v{rook_version}/cluster/examples/kubernetes/ceph/{file}'
+    for file, src in FILES.items():
+        url = f'https://raw.githubusercontent.com/rook/rook/v{rook_version}/cluster/examples/kubernetes/ceph/{src}'
         with open(f'{SOURCE}/{file}', 'wb') as out:
             r = http.request('GET', url, preload_content=False)
             shutil.copyfileobj(r, out)
