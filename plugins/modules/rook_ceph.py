@@ -181,7 +181,7 @@ def deploy(params: dict):
         for node in ceph_nodes:
             # node
             node_name = node['name']
-            node_metadata = node['metadata']
+            node_metadata = node.get('metadata')
             node_volumes = node['volumes']
 
             storage_config = {}
