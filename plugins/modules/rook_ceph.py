@@ -234,12 +234,13 @@ def deploy(params: dict):
         os.system(f'kubectl apply -f {SOURCE}/{file}')
         if file.startswith('operator'):
             os.system(
-                f'kubectl -n rook-ceph rollout status deploy/rook-ceph-operator')
-            os.system(f'sleep 60')
+                'kubectl -n rook-ceph rollout status deploy/rook-ceph-operator')
+            os.system('sleep 60')
         else:
-            os.system(f'sleep 1')
-    os.system(f'kubectl -n rook-ceph rollout status deploy/rook-ceph-tools')
-    os.system(f'kubectl patch storageclass rook-ceph-block -p \'{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}\'')
+            os.system('sleep 1')
+    os.system('kubectl -n rook-ceph rollout status deploy/rook-ceph-tools')
+    os.system(
+        'kubectl patch storageclass rook-ceph-block -p \'{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}\'')
 
     # Finish
     return True
