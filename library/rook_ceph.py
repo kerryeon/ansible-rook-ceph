@@ -209,7 +209,7 @@ def deploy(params: dict):
             if storage_devices:
                 num_nodes += 1
                 storage['nodes'].append({
-                    'name': node,
+                    'name': node_name,
                     'config': storage_config,
                     'devices': storage_devices,
                 })
