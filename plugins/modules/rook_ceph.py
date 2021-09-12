@@ -58,7 +58,7 @@ options:
                     - LVM
                     - RAW
                 default: LVM
-            osds_per_device:
+            osdsPerDevice:
                 description: OSDs per Device
                 required: false
                 type: int
@@ -121,7 +121,7 @@ def deploy(params: dict):
     ceph_image_user: str = ceph_image.get('user') or 'ceph'
     ceph_image_version: str = ceph_image.get('version')
     ceph_mode: str = ceph['mode']
-    ceph_osds_per_device: int = ceph.get('osds_per_device') or 6
+    ceph_osds_per_device: int = ceph.get('osdsPerDevice') or 6
     ceph_nodes: list[object] = ceph.get('nodes')
 
     # Download files
