@@ -36,6 +36,11 @@ options:
         required: true
         type: dict
         suboptions:
+            forceCleanup:
+                description: whether to confirm with cleanup policy configuration
+                required: false
+                type: bool
+                default: false
             image:
                 description: Ceph image configuration
                 required: false
@@ -107,6 +112,17 @@ EXAMPLES = r'''
 RETURN = ''' # '''
 
 
+FILES = {
+    'crds.yaml': 'crds.yaml',
+    'common.yaml': 'common.yaml',
+    'operator.yaml': 'operator.yaml',
+    'cluster.yaml': 'cluster.yaml',
+    'storageclass.yaml': 'csi/rbd/storageclass.yaml',
+    'toolbox.yaml': 'toolbox.yaml',
+}
+SOURCE = '/tmp/rook-ceph'
+
+
 def gather_facts():
     return {}
 
@@ -118,6 +134,7 @@ def deploy(params: dict):
 
     # ceph
     ceph: dict = params['ceph']
+    ceph_force_cleanup: bool = ceph.get('forceCleanup') or False
     ceph_image: dict = ceph.get('image') or {}
     ceph_image_user: str = ceph_image.get('user') or 'ceph'
     ceph_image_version: str = ceph_image.get('version')
@@ -126,15 +143,6 @@ def deploy(params: dict):
     ceph_nodes: list[object] = ceph.get('nodes')
 
     # Download files
-    FILES = {
-        'crds.yaml': 'crds.yaml',
-        'common.yaml': 'common.yaml',
-        'operator.yaml': 'operator.yaml',
-        'cluster.yaml': 'cluster.yaml',
-        'storageclass.yaml': 'csi/rbd/storageclass.yaml',
-        'toolbox.yaml': 'toolbox.yaml',
-    }
-    SOURCE = '/tmp/rook-ceph'
     os.makedirs(SOURCE, mode=0o755, exist_ok=True)
     http = urllib3.PoolManager()
     for file, src in FILES.items():
@@ -159,6 +167,10 @@ def deploy(params: dict):
     with open(f'{SOURCE}/cluster.yaml', 'r') as f:
         context = yaml.load(f, Loader=yaml.SafeLoader)
         spec = context['spec']
+
+        # confirm with the cleanup policy configuration
+        if ceph_force_cleanup:
+            spec['cleanupPolicy']['confirmation'] = 'yes-really-destroy-data'
 
         # specify the fixed ceph version
         if ceph_image_user is not None and ceph_image_version is not None:
@@ -271,6 +283,9 @@ def reset(params: dict):
     # ceph
     ceph: dict = params['ceph']
     ceph_nodes: list[object] = ceph.get('nodes')
+
+    for file in FILES:
+        os.system(f'kubectl delete -f {SOURCE}/{file} --timeout=30s || true')
 
     os.system('sudo dmsetup remove_all')
     os.system('sudo rm -rf /dev/ceph-*')
