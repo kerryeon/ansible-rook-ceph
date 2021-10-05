@@ -24,7 +24,7 @@ description: Simple Rook-Ceph Provisioning Tool
 options:
     rook:
         description: Rook configuration
-        required: true
+        required: false
         type: dict
         suboptions:
             version:
@@ -38,7 +38,7 @@ options:
         suboptions:
             image:
                 description: Ceph image configuration
-                required: true
+                required: false
                 type: dict
                 suboptions:
                     user:
@@ -52,7 +52,7 @@ options:
                         type: str
             mode:
                 description: Ceph's configuration mode
-                required: true
+                required: false
                 type: str
                 choices:
                     - LVM
@@ -88,19 +88,20 @@ author:
 EXAMPLES = r'''
 - name: Deploy Rook-Ceph cluster
   kerryeon.ansible_rook_ceph.rook_ceph:
-    rook:
-      version: 1.5.12
-    ceph:
-      image:
-        user: kerryeon
-        version: 15.2.7
-      mode: LVM
-      osdsPerDevice: 3
-      nodes:
-        - name: my-node1
-          metadata: /dev/disk/by-id/...
-          volumes:
-            - /dev/disk/by-id/...
+    deploy:
+      rook:
+        version: 1.5.12
+      ceph:
+        image:
+          user: kerryeon
+          version: 15.2.7
+        mode: LVM
+        osdsPerDevice: 3
+        nodes:
+          - name: my-node1
+            metadata: /dev/disk/by-id/...
+            volumes:
+              - /dev/disk/by-id/...
 '''
 
 RETURN = ''' # '''
@@ -172,49 +173,69 @@ def deploy(params: dict):
         storage = spec['storage']
         if 'config' not in storage or storage['config'] is None:
             storage['config'] = {}
-        storage['useAllNodes'] = False
-        storage['useAllDevices'] = False
-        storage['deviceFilter'] = ''
 
-        num_nodes = 0
-        storage.setdefault('nodes', [])
-        for node in ceph_nodes:
-            # node
-            node_name: str = node['name']
-            node_metadata: str = node.get('metadata')
-            node_volumes: list[str] = node['volumes']
+        # if the nodes are specified
+        if ceph_nodes:
+            storage['useAllNodes'] = False
+            storage['useAllDevices'] = False
+            storage['deviceFilter'] = ''
 
-            storage_config = {}
-            storage_devices = []
+            num_nodes = 0
+            storage.setdefault('nodes', [])
+            for node in ceph_nodes:
+                # node
+                node_name: str = node['name']
+                node_metadata: str = node.get('metadata')
+                node_volumes: list[str] = node['volumes']
 
-            if not node_volumes:
-                print(f'Skipping Rook-Ceph Node: {node_name}')
-                continue
+                storage_config = {}
+                storage_devices = []
+
+                if not node_volumes:
+                    print(f'Skipping Rook-Ceph Node: {node_name}')
+                    continue
+
+                # RAW mode
+                if ceph_mode == 'RAW':
+                    print('RAW mode is not supported yet')
+                    return False
+                # LVM mode (default)
+                else:
+                    storage_config['metadataDevice'] = node_metadata
+                    for volume in node_volumes:
+                        storage_devices.append({
+                            'name': volume,
+                            'config': {
+                                'osdsPerDevice': str(ceph_osds_per_device),
+                            },
+                        })
+
+                if storage_devices:
+                    num_nodes += 1
+                    storage['nodes'].append({
+                        'name': node_name,
+                        'config': storage_config,
+                        'devices': storage_devices,
+                    })
+
+            num_nodes = min(3, num_nodes)
+
+        # if the nodes are not specified
+        else:
+            storage['useAllNodes'] = True
+            storage['useAllDevices'] = True
 
             # RAW mode
             if ceph_mode == 'RAW':
-                print('RAW mode is not supported yet')
+                print('RAW mode is not supported when nodes are not specified')
                 return False
             # LVM mode (default)
             else:
-                storage_config['metadataDevice'] = node_metadata
-                for volume in node_volumes:
-                    storage_devices.append({
-                        'name': volume,
-                        'config': {
-                            'osdsPerDevice': str(ceph_osds_per_device),
-                        },
-                    })
+                storage['config'] = {
+                    'osdsPerDevice': str(ceph_osds_per_device),
+                }
+            num_nodes = 1
 
-            if storage_devices:
-                num_nodes += 1
-                storage['nodes'].append({
-                    'name': node_name,
-                    'config': storage_config,
-                    'devices': storage_devices,
-                })
-
-        num_nodes = min(3, num_nodes)
         num_mons = ((num_nodes + 1) // 2) * 2 - 1
         spec['mon']['count'] = num_mons
     with open(f'{SOURCE}/cluster.yaml', 'w') as f:
