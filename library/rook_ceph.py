@@ -180,9 +180,9 @@ def deploy(params: dict):
         storage.setdefault('nodes', [])
         for node in ceph_nodes:
             # node
-            node_name = node['name']
-            node_metadata = node.get('metadata')
-            node_volumes = node['volumes']
+            node_name: str = node['name']
+            node_metadata: str = node.get('metadata')
+            node_volumes: list[str] = node['volumes']
 
             storage_config = {}
             storage_devices = []
@@ -246,9 +246,43 @@ def deploy(params: dict):
     return True
 
 
+def reset(params: dict):
+    # ceph
+    ceph: dict = params['ceph']
+    ceph_nodes: list[object] = ceph.get('nodes')
+
+    os.system('sudo dmsetup remove_all')
+    os.system('sudo rm -rf /dev/ceph-*')
+    os.system('sudo rm -rf /dev/mapper/ceph--*')
+    os.system('sudo rm -rf /var/lib/rook/')
+    os.system('sudo rm -rf /var/lib/kubelet/plugins/')
+    os.system('sudo rm -rf /var/lib/kubelet/plugins_registry/')
+
+    if ceph_nodes:
+        # node
+        import socket
+        node_name = socket.gethostname()
+        node = next(node for node in ceph_nodes if node['name'] == node_name)
+        node_volumes: list[str] = node['volumes']
+
+        # Cleanup LVMs
+        for volume in node_volumes:
+            if not volume.startswith('/dev/'):
+                volume = f'/dev/{volume}'
+
+            os.system(f'sudo wipefs --all {volume} && sync')
+            os.system(f'sudo sgdisk --zap-all {volume} && sync')
+            os.system(
+                f'sudo dd if=/dev/zero of={volume} bs=1M count=100 oflag=direct,dsync && sync'
+            )
+            os.system(f'sudo blkdiscard {volume} && sync')
+            os.system(f'sudo partprobe {volume} && sync')
+
+
 argument_spec = {
     'gather_facts': {'type': 'bool', 'required': False, },
     'deploy': {'type': 'dict', 'required': False, },
+    'reset': {'type': 'dict', 'required': False, },
 }
 
 
@@ -271,6 +305,11 @@ def run_task(module):
     arg_deploy = module.params['deploy']
     if arg_deploy:
         ret['changed'] = ret['changed'] or deploy(arg_deploy)
+        return ret
+
+    arg_reset = module.params['reset']
+    if arg_reset:
+        ret['changed'] = ret['changed'] or reset(arg_reset)
         return ret
 
     return ret
