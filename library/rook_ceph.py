@@ -5,6 +5,7 @@
 from __future__ import (absolute_import, division, print_function)
 import os
 import shutil
+import time
 import urllib3
 import yaml
 __metaclass__ = type
@@ -170,6 +171,7 @@ def deploy(params: dict):
 
         # confirm with the cleanup policy configuration
         if ceph_force_cleanup:
+            spec['cleanupPolicy']['allowUninstallWithVolumes'] = True
             spec['cleanupPolicy']['confirmation'] = 'yes-really-destroy-data'
 
         # specify the fixed ceph version
@@ -268,12 +270,14 @@ def deploy(params: dict):
         if file.startswith('operator'):
             os.system(
                 'kubectl -n rook-ceph rollout status deploy/rook-ceph-operator')
-            os.system('sleep 60')
+            time.sleep(60)
         else:
-            os.system('sleep 1')
+            time.sleep(1)
     os.system('kubectl -n rook-ceph rollout status deploy/rook-ceph-tools')
     os.system(
-        'kubectl patch storageclass rook-ceph-block -p \'{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}\'')
+        'kubectl patch storageclass rook-ceph-block '
+        '-p \'{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}\''
+    )
 
     # Finish
     return True
