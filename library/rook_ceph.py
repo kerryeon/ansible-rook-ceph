@@ -291,8 +291,8 @@ def reset(params: dict):
     os.system('sudo rm -rf /dev/ceph-*')
     os.system('sudo rm -rf /dev/mapper/ceph--*')
     os.system('sudo rm -rf /var/lib/rook/')
-    os.system('sudo rm -rf /var/lib/kubelet/plugins/')
-    os.system('sudo rm -rf /var/lib/kubelet/plugins_registry/')
+    # os.system('sudo rm -rf /var/lib/kubelet/plugins/')
+    # os.system('sudo rm -rf /var/lib/kubelet/plugins_registry/')
 
     if ceph_nodes:
         # node
