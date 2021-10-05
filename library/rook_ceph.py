@@ -65,7 +65,7 @@ options:
                 default: 6
             nodes:
                 description: Ceph cluster nodes
-                required: true
+                required: false
                 type: list
                 suboptions:
                     name:
