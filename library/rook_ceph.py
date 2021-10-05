@@ -5,6 +5,7 @@
 from __future__ import (absolute_import, division, print_function)
 import os
 import shutil
+import subprocess
 import time
 import urllib3
 import yaml
@@ -37,11 +38,6 @@ options:
         required: true
         type: dict
         suboptions:
-            forceCleanup:
-                description: whether to confirm with cleanup policy configuration
-                required: false
-                type: bool
-                default: false
             image:
                 description: Ceph image configuration
                 required: false
@@ -169,11 +165,6 @@ def deploy(params: dict):
         context = yaml.load(f, Loader=yaml.SafeLoader)
         spec = context['spec']
 
-        # confirm with the cleanup policy configuration
-        if ceph_force_cleanup:
-            spec['cleanupPolicy']['allowUninstallWithVolumes'] = True
-            spec['cleanupPolicy']['confirmation'] = 'yes-really-destroy-data'
-
         # specify the fixed ceph version
         if ceph_image_user is not None and ceph_image_version is not None:
             spec['cephVersion']['image'] = f'{ceph_image_user}/ceph:v{ceph_image_version}'
@@ -269,14 +260,14 @@ def deploy(params: dict):
         os.system(f'kubectl apply -f {SOURCE}/{file}')
         if file.startswith('operator'):
             os.system(
-                'kubectl -n rook-ceph rollout status deploy/rook-ceph-operator')
+                r'kubectl -n rook-ceph rollout status deploy/rook-ceph-operator')
             time.sleep(60)
         else:
             time.sleep(1)
-    os.system('kubectl -n rook-ceph rollout status deploy/rook-ceph-tools')
+    os.system(r'kubectl -n rook-ceph rollout status deploy/rook-ceph-tools')
     os.system(
-        'kubectl patch storageclass rook-ceph-block '
-        '-p \'{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}\''
+        r'kubectl patch storageclass rook-ceph-block '
+        r'-p \'{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}\''
     )
 
     # Finish
@@ -289,34 +280,46 @@ def reset(params: dict):
     ceph_nodes: list[object] = ceph.get('nodes')
 
     for file in FILES:
-        os.system(f'kubectl delete -f {SOURCE}/{file} --timeout=30s || true')
+        os.system(
+            f'kubectl delete -f {SOURCE}/{file} --timeout=30s || true'
+        )
 
-    os.system('sudo dmsetup remove_all')
-    os.system('sudo rm -rf /dev/ceph-*')
-    os.system('sudo rm -rf /dev/mapper/ceph--*')
-    os.system('sudo rm -rf /var/lib/rook/')
-    # os.system('sudo rm -rf /var/lib/kubelet/plugins/')
-    # os.system('sudo rm -rf /var/lib/kubelet/plugins_registry/')
+    os.system(r'sudo dmsetup remove_all')
+    os.system(r'sudo rm -rf /dev/ceph-*')
+    os.system(r'sudo rm -rf /dev/mapper/ceph--*')
+    os.system(r'sudo rm -rf /var/lib/rook/')
+    # os.system(r'sudo rm -rf /var/lib/kubelet/plugins/')
+    # os.system(r'sudo rm -rf /var/lib/kubelet/plugins_registry/')
 
-    if ceph_nodes:
-        # node
+    # estimate volumes
+    # note: dependency "jq" must be installed, if nodes are not specified!
+    if not ceph_nodes:
+        node_volumes = subprocess.check_output([
+            "/bin/bash", "-c",
+            'lsblk --fs --json | '
+            'jq -r \'.blockdevices[] | select(.children == null and .fstype == "LVM2_member") | .name\'',
+        ]).decode('utf-8').split('\n')[:-1]
+    else:
         import socket
         node_name = socket.gethostname()
         node = next(node for node in ceph_nodes if node['name'] == node_name)
         node_volumes: list[str] = node['volumes']
 
-        # Cleanup LVMs
-        for volume in node_volumes:
-            if not volume.startswith('/dev/'):
-                volume = f'/dev/{volume}'
+    # Cleanup LVMs
+    for volume in node_volumes:
+        if not volume.startswith('/dev/'):
+            volume = f'/dev/{volume}'
 
-            os.system(f'sudo wipefs --all {volume} && sync')
-            os.system(f'sudo sgdisk --zap-all {volume} && sync')
-            os.system(
-                f'sudo dd if=/dev/zero of={volume} bs=1M count=100 oflag=direct,dsync && sync'
-            )
-            os.system(f'sudo blkdiscard {volume} && sync')
-            os.system(f'sudo partprobe {volume} && sync')
+        os.system(f'sudo wipefs --all {volume} && sync')
+        os.system(f'sudo sgdisk --zap-all {volume} && sync')
+        os.system(
+            f'sudo dd if=/dev/zero of={volume} bs=1M count=100 oflag=direct,dsync && sync'
+        )
+        os.system(f'sudo blkdiscard {volume} && sync')
+        os.system(f'sudo partprobe {volume} && sync')
+
+    # Finish
+    return True
 
 
 argument_spec = {
