@@ -260,14 +260,15 @@ def deploy(params: dict):
         os.system(f'kubectl apply -f {SOURCE}/{file}')
         if file.startswith('operator'):
             os.system(
-                r'kubectl -n rook-ceph rollout status deploy/rook-ceph-operator')
+                'kubectl -n rook-ceph rollout status deploy/rook-ceph-operator'
+            )
             time.sleep(60)
         else:
             time.sleep(1)
-    os.system(r'kubectl -n rook-ceph rollout status deploy/rook-ceph-tools')
+    os.system('kubectl -n rook-ceph rollout status deploy/rook-ceph-tools')
     os.system(
-        r'kubectl patch storageclass rook-ceph-block '
-        r'-p \'{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}\''
+        'kubectl patch storageclass rook-ceph-block '
+        '-p \'{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}\''
     )
 
     # Finish
@@ -284,12 +285,12 @@ def reset(params: dict):
             f'kubectl delete -f {SOURCE}/{file} --timeout=30s || true'
         )
 
-    os.system(r'sudo dmsetup remove_all')
-    os.system(r'sudo rm -rf /dev/ceph-*')
-    os.system(r'sudo rm -rf /dev/mapper/ceph--*')
-    os.system(r'sudo rm -rf /var/lib/rook/')
-    # os.system(r'sudo rm -rf /var/lib/kubelet/plugins/')
-    # os.system(r'sudo rm -rf /var/lib/kubelet/plugins_registry/')
+    os.system('sudo dmsetup remove_all')
+    os.system('sudo rm -rf /dev/ceph-*')
+    os.system('sudo rm -rf /dev/mapper/ceph--*')
+    os.system('sudo rm -rf /var/lib/rook/')
+    # os.system('sudo rm -rf /var/lib/kubelet/plugins/')
+    # os.system('sudo rm -rf /var/lib/kubelet/plugins_registry/')
 
     # estimate volumes
     # note: dependency "jq" must be installed, if nodes are not specified!
